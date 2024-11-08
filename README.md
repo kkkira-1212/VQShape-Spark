@@ -3,11 +3,12 @@
 VQShape is a pre-trained model for time-series analysis. The model provides shape-level features as interpretable representations for time-series data. The model also contains a universal codebook of shapes that generalizes to different domains and datasets. The current checkpoints are pre-trained on the UEA multivariate time-series classification datasets [[Bagnall et al., 2018]](https://timeseriesclassification.com/). 
 
 For more details, please refer to our paper: \
-&nbsp;&nbsp;&nbsp;&nbsp;[Abstracted Shapes as Tokens - A Generalizable and Interpretable Model for Time-series Classification](https://openreview.net/forum?id=pwKkNSuuEs) (NeurIPS 2024)\
-&nbsp;&nbsp;&nbsp;&nbsp;**Authors**: Yunshi Wen, Tengfei Ma, Tsui-Wei Weng, Lam M. Nguyen, Anak Agung Julius
+[Abstracted Shapes as Tokens - A Generalizable and Interpretable Model for Time-series Classification](https://openreview.net/forum?id=pwKkNSuuEs)\
+ (NeurIPS 2024)\
+**Authors**: Yunshi Wen, Tengfei Ma, Tsui-Wei Weng, Lam M. Nguyen, Anak Agung Julius
 
 
-> **Note**
+> [!NOTE]
 > This repository is still under construction since we are still working on cleaning up the source code. We aim to update this repository every one or two weeks. The pre-trained checkpoints will be released soon. Future updates will include benchmarking scripts for classification, forecasting, and imputation.
 
 
