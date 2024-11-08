@@ -11,9 +11,8 @@ from lightning.pytorch.callbacks import LearningRateMonitor
 import wandb
 
 from data_provider.timeseries_loader import TimeSeriesDatasetLazy
-from vqshape.vqshape_utils import visualize, plot_code_heatmap
-
-from vqshape.vqshape import VQShape
+from vqshape.vqshape_utils import visualize_shapes, plot_code_heatmap
+from vqshape.model import VQShape
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -57,7 +56,7 @@ class LitVQShape(L.LightningModule):
                 mask_ratio=self.hparams.mask_ratio
             )
         except:
-            print("Incompatible configs. Trying the legacy version...", flush=True)
+            warnings.warn("Incompatible configs. Trying the legacy version...")
             self.model = VQShape(
                 len_input=self.hparams.normalize_length,
                 dim_embedding=self.hparams.dim_embedding,
@@ -120,12 +119,7 @@ class LitVQShape(L.LightningModule):
         self.validation_step_outputs[dataloader_idx]['t'].append(output_dict['t_pred'])
         self.validation_step_outputs[dataloader_idx]['l'].append(output_dict['l_pred'])
         if batch_idx == 0 and self.global_rank == 0:
-            fig, s_fig = visualize(
-                output_dict['x_true'], output_dict['x_pred'], 
-                output_dict['s_true'], output_dict['s_pred'], 
-                output_dict['t_pred'], output_dict['l_pred'], 
-                output_dict['mu_pred'], output_dict['sigma_pred']
-            )
+            fig, s_fig = visualize_shapes(output_dict)
             self.logger.experiment.log({
                 f"VAL{dataloader_idx}/x_fig": wandb.Image(fig),
                 f"VAL{dataloader_idx}/s_fig": wandb.Image(s_fig)
@@ -151,6 +145,8 @@ class LitVQShape(L.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
         stepping_batches = self.trainer.estimated_stepping_batches - self.hparams.warmup_step
+
+        # Cosine annealing with linear warmup learning rate schedule
         scheduler = torch.optim.lr_scheduler.SequentialLR(
             optimizer, 
             schedulers=[torch.optim.lr_scheduler.LinearLR(optimizer, 0.0001, 1, self.hparams.warmup_step), 
@@ -206,6 +202,8 @@ def get_args():
     parser.add_argument("--balance_datasets", action='store_true')
 
     # Environment settings
+    parser.add_argument("--data_root", type=str, default='../data/VQShape')
+    parser.add_argument("--dev", action='store_true')
     parser.add_argument("--name", type=str, default="")
     parser.add_argument("--num_nodes", type=int, default=1)
     parser.add_argument("--num_devices", type=int, default=1)
@@ -229,7 +227,7 @@ def main(args):
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
     trainer = L.Trainer(
-        # fast_dev_run=True,
+        fast_dev_run=args.dev,
         default_root_dir=args.save_dir,
         strategy=strategy_dict[args.strategy],
         accelerator='gpu',
@@ -249,16 +247,15 @@ def main(args):
     print(f"Start Time: {datetime.now().strftime('%m/%d/%Y, %H:%M:%S')}")
     sys.stdout.flush()
     
-    data_root = '../data/VQShape'
     train_dataset = TimeSeriesDatasetLazy(
-        data_root, 
+        args.data_root, 
         tasks=['uea'],
         split='TRAIN', 
         sequence_length=args.normalize_length, 
         balance=args.balance_datasets
     )
     val_dataset = TimeSeriesDatasetLazy(
-        data_root, 
+        args.data_root, 
         tasks=['uea'],
         split='TEST', 
         sequence_length=args.normalize_length

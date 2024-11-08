@@ -5,6 +5,7 @@ dim_model=$2
 
 
 python ./vqshape/pretrain.py \
+    --data_root ~/Desktop/data/VQShape \
     --dim_embedding $dim_model \
     --normalize_length 512 \
     --patch_size 8 \
@@ -43,5 +44,6 @@ python ./vqshape/pretrain.py \
     --strategy "auto" \
     --precision "bf16-mixed" \
     --num_workers 8 \
-    --balance_datasets
+    --balance_datasets \
+    --dev
     

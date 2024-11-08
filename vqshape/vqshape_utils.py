@@ -44,29 +44,46 @@ def plot_code_heatmap(code_indices, num_codes, title=''):
     return fig
 
 
-def visualize(x, x_hat, s, s_hat, t, l, mu, sigma, num_sample=10, num_s_sample=25, title=''):
-    sample_idx = np.random.randint(0, x.shape[0], num_sample)
-    x, x_hat, s, s_hat, t, l, mu, sigma = x.float().cpu().numpy(), x_hat.float().cpu().numpy(), s.float().cpu().numpy(), s_hat.float().cpu().numpy(), t.float().cpu().numpy(), l.float().cpu().numpy(), mu.float().cpu().numpy(), sigma.float().cpu().numpy()
+def visualize_shapes(attribute_dict, num_sample=10, num_s_sample=25, title=''):
+    '''
+    Visualize the decoded shapes and time series.
+    attribute_dict: a dict of attributes to visualize. With the following keys:
+        x_true: real time series.
+        x_pred: reconstructed time series.
+        s_true: real subsequences.
+        s_pred: decoded shapes.
+        t_pred: start times of the shapes.
+        l_pred: lengths of the shapes.
+        mu_pred: offset of the shapes.
+        sigma_pred: standard deviation of the shapes.
+    '''
+    for k, v in attribute_dict.items():
+        attribute_dict[k] = v.float().cpu().numpy()
+    
+    sample_idx = np.random.randint(0, attribute_dict['x_true'].shape[0], num_sample)
+
+    # Visualize time series and all 64 shapes
     fig = plt.figure(figsize=(30, 4))
     for i, idx in enumerate(sample_idx):
         ax = fig.add_subplot(num_sample//5, 5, i+1)
-        ax.plot(np.linspace(0, 1, x.shape[-1]), x[idx], color='tab:grey', linewidth=5, alpha=0.3)
-        ax.plot(np.linspace(0, 1, x.shape[-1]), x_hat[idx], color='tab:blue', linewidth=5, alpha=0.3)
-        for j in range(t.shape[1]):
-            ts = np.linspace(t[idx, j], min(t[idx, j]+l[idx, j], 1), s_hat[idx, j].shape[-1])
-            ax.plot(ts, s_hat[idx, j])
+        ax.plot(np.linspace(0, 1, attribute_dict['x_true'].shape[-1]), attribute_dict['x_true'][idx], color='tab:grey', linewidth=5, alpha=0.3)
+        ax.plot(np.linspace(0, 1, attribute_dict['x_true'].shape[-1]), attribute_dict['x_pred'][idx], color='tab:blue', linewidth=5, alpha=0.3)
+        for j in range(attribute_dict['t_pred'].shape[1]):
+            ts = np.linspace(attribute_dict['t_pred'][idx, j], min(attribute_dict['t_pred'][idx, j]+attribute_dict['l_pred'][idx, j], 1), attribute_dict['s_pred'][idx, j].shape[-1])
+            ax.plot(ts, attribute_dict['s_pred'][idx, j])
     plt.tight_layout()
 
-    s = rearrange(s, 'B N L -> (B N) L')
-    s_hat = rearrange(s_hat, 'B N L -> (B N) L')
-    t = rearrange(t, 'B N L -> (B N) L')
-    l = rearrange(l, 'B N L -> (B N) L')
-    s_samples_idx = np.random.randint(0, s.shape[0], num_s_sample)
+    # Visualize each decoded shape and its corresponding real subsequence
+    s_true = rearrange(attribute_dict['s_true'], 'B N L -> (B N) L')
+    s_pred = rearrange(attribute_dict['s_pred'], 'B N L -> (B N) L')
+    t_pred = rearrange(attribute_dict['t_pred'], 'B N L -> (B N) L')
+    l_pred = rearrange(attribute_dict['l_pred'], 'B N L -> (B N) L')
+    s_samples_idx = np.random.randint(0, s_true.shape[0], num_s_sample)
     s_fig = plt.figure(figsize=(15, 8))
     for i, idx in enumerate(s_samples_idx):
         ax = s_fig.add_subplot(5, num_s_sample//5, i+1)
-        ax.plot(np.linspace(t[idx], t[idx] + l[idx], s.shape[-1]), s[idx], alpha=0.5)
-        ax.plot(np.linspace(t[idx], t[idx] + l[idx], s_hat.shape[-1]), s_hat[idx], alpha=0.5)
+        ax.plot(np.linspace(t_pred[idx], t_pred[idx] + l_pred[idx], s_true.shape[-1]), s_true[idx], alpha=0.5)
+        ax.plot(np.linspace(t_pred[idx], t_pred[idx] + l_pred[idx], s_pred.shape[-1]), s_pred[idx], alpha=0.5)
     plt.tight_layout()
 
     return fig, s_fig

@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.distributions as D
 from einops import rearrange, repeat
-from vqshape.networks import *
-from vqtorch.nn import VectorQuant
+from vqshape.networks import MLP, ShapeDecoder
 
 
+# Utility functions
 def log(t, eps = 1e-5):
     return t.clamp(min = eps).log()
 
@@ -34,43 +34,42 @@ class PositionalEmbedding(nn.Module):
 
 
 class EuclCodebook(nn.Module):
-    def __init__(self, num_code: int = 512, dim_code: int = 256, 
-                 commit_loss=1., 
-                 entropy_loss=0., entropy_gamma=1.,
-                 top_k_sample=8, sample_temperature=0.05):
+    def __init__(
+            self, 
+            num_code: int = 512, 
+            dim_code: int = 256, 
+            commit_loss=1., 
+            entropy_loss=0., 
+            entropy_gamma=1.,
+        ):
         super().__init__()
         self.num_codebook_vectors = num_code
         self.latent_dim = dim_code
         self.commit_loss = commit_loss
         self.entropy_loss = entropy_loss
         self.entropy_gamma = entropy_gamma
-        self.top_k = top_k_sample
-        self.temp = sample_temperature
-
+        
         self.embedding = nn.Embedding(self.num_codebook_vectors, self.latent_dim)
         self.embedding.weight.data.uniform_(-1.0 / self.num_codebook_vectors, 1.0 / self.num_codebook_vectors)
 
-    def forward(self, z, do_sample=False):
+    def forward(self, z):
         z_flattened = rearrange(z, "B L E -> (B L) E")
 
+        # Compute distance between z and codebook vectors
         d = torch.sum(z_flattened**2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight**2, dim=1) - \
             2*(torch.matmul(z_flattened, self.embedding.weight.t()))
 
-        if not do_sample:
-            min_encoding_indices = torch.argmin(d, dim=1)
-        else:
-            min_encoding_dists, min_encoding_indices = torch.topk(d, self.top_k, dim=1, largest=False)
-            encoding_probs = nn.functional.softmin(min_encoding_dists/self.temp, dim=1)
-            random_idx = torch.multinomial(encoding_probs, 1)
-            min_encoding_indices = min_encoding_indices.gather(1, random_idx).squeeze(1)
-
+        # Find the nearest codebook vector for each z
+        min_encoding_indices = torch.argmin(d, dim=1)
         z_q = rearrange(self.embedding(min_encoding_indices), '(B L) E -> B L E', B=z.shape[0])
 
+        # Commitment loss
         loss = torch.mean((z_q.detach() - z)**2) + self.commit_loss * torch.mean((z_q - z.detach())**2)
         z_q = z + (z_q - z).detach()
         min_encoding_indices = rearrange(min_encoding_indices, '(B L) -> B L', B=z.shape[0])
 
+        # Entropy loss
         if self.entropy_loss > 0:
             p = nn.functional.softmin(d/0.01, dim=-1)
             entropy_loss = entropy(p).mean() - self.entropy_gamma * entropy(p.mean(0))
@@ -112,7 +111,6 @@ class PatchEncoder(nn.Module):
         )
 
     def patch_and_embed(self, x):
-        # num_patch = self.num_patch if num_patch is None else num_patch
         x = x.unfold(-1, self.patch_size, int(x.shape[-1]/self.num_patch))
         x = self.pos_embed(self.input_project(x))
         return x
@@ -184,6 +182,9 @@ class Tokenizer(nn.Module):
 
 
 class AttributeDecoder(nn.Module):
+    '''
+    Decode embeddings into shape attributes
+    '''
     def __init__(self, dim_code: int = 256, dim_embedding: int = 256) -> None:
         super().__init__()
 
@@ -202,6 +203,9 @@ class AttributeDecoder(nn.Module):
     
 
 class AttributeEncoder(nn.Module):
+    '''
+    Encode shape attributes into embeddings
+    '''
     def __init__(self, dim_code: int = 256, dim_embedding: int = 256) -> None:
         super().__init__()
 
@@ -212,6 +216,9 @@ class AttributeEncoder(nn.Module):
 
 
 def extract_subsequence(x, t, l, norm_length, smooth=9):
+    '''
+    Sample subsequences specified by t and l from time series x
+    '''
     B, T = x.shape
     relative_positions = torch.linspace(0, 1, steps=norm_length).to(x.device)
     start_indices = (t * (T-1))
@@ -246,40 +253,40 @@ def eucl_sim_loss(x, threshold=0.1):
 class VQShape(nn.Module):
     def __init__(
             self, 
-            dim_embedding: int = 256,
-            patch_size: int = 8,
-            num_patch: int = 64,
-            num_enc_head: int = 6,
-            num_enc_layer: int = 6,
-            num_tokenizer_head: int = 6,
-            num_tokenizer_layer: int = 6,
-            num_dec_head: int = 6,
-            num_dec_layer: int = 6,
-            num_token: int = 32,
-            len_s: int = 256,
-            len_input: int = 512,
-            s_smooth_factor: int = 11,
-            num_code: int = 512,
-            dim_code: int = 32,
-            codebook_type: str = "standard",
-            lambda_commit: float = 1.,
-            lambda_entropy: float = 1.,
-            entropy_gamma: float = 1.,
-            mask_ratio: float = 0.25
+            dim_embedding: int = 256, # Embedding dimension of Transformers
+            patch_size: int = 8, # Patch size of PatchTST backbone
+            num_patch: int = 64, # Number of patches of PatchTST backbone
+            num_enc_head: int = 6, # Number of heads in Transformer encoder
+            num_enc_layer: int = 6, # Number of layers in Transformer encoder
+            num_tokenizer_head: int = 6, # Number of heads in Transformer tokenizer
+            num_tokenizer_layer: int = 6, # Number of layers in Transformer tokenizer
+            num_dec_head: int = 6, # Number of heads in Transformer decoder
+            num_dec_layer: int = 6, # Number of layers in Transformer decoder
+            num_token: int = 32, # Number of shape tokens (output of tokenizer)
+            len_s: int = 256, # Unified length of shapes
+            len_input: int = 512, # Unified length of input time series
+            s_smooth_factor: int = 11, # Smoothing factor for moving average
+            num_code: int = 512, # Codebook size
+            dim_code: int = 8, # Shape code dimension
+            codebook_type: str = "standard", # Type of codebook
+            lambda_commit: float = 1., # Commitment loss coefficient
+            lambda_entropy: float = 1., # Entropy loss coefficient of the codebook
+            entropy_gamma: float = 1., # Entropy gamma of the codebook
+            mask_ratio: float = 0.25 # Mask ratio for pretraining
         ):
         super().__init__()
         
         self.len_s = len_s
         self.s_smooth_factor = s_smooth_factor
-        self.num_code = num_code  # Codebook size
+        self.num_code = num_code
         self.codebook_type = codebook_type
         self.min_shape_len = 1/64
         self.entropy_gamma = entropy_gamma
 
-        self.num_patch = num_patch # Max num of patch of the input sequence
+        self.num_patch = num_patch
         self.patch_size = patch_size  
         self.mask_ratio = mask_ratio
-        self.num_token = num_token  # Num of shape tokens
+        self.num_token = num_token
 
         self.encoder = PatchEncoder(
             dim_embedding=dim_embedding,
@@ -298,6 +305,7 @@ class VQShape(nn.Module):
                 entropy_gamma=entropy_gamma
             )
         elif codebook_type == "vqtorch":
+            from vqtorch.nn import VectorQuant
             self.codebook = VectorQuant(
                 feature_size=dim_code,
                 num_codes=num_code,
@@ -330,7 +338,13 @@ class VQShape(nn.Module):
         self.shape_decoder = ShapeDecoder(dim_code, len_s, out_kernel_size=s_smooth_factor)
 
     def forward(self, x, *, mode='pretrain', num_input_patch=-1, mask=None, finetune=False):
-        # x: (b t)
+        '''
+        x: shape (batch_size, time_steps), time series data
+        mode: mode of the forward pass
+        num_input_patch: number of patches of the input time series (!! set if x is a partial time series, e.g. forecasting)
+        mask: mask that indicates the missing values in the input time series (for imputation)
+        finetune: whether to compute loss and update parameters for downstream tasks
+        '''
         if mode == 'pretrain':
             return self.pretrain(x)
         elif mode == 'evaluate':
@@ -358,7 +372,7 @@ class VQShape(nn.Module):
             output_dict = self._forward(x, x_embed, None, compute_loss=False)
             return output_dict
         
-    def imputation(self, x, mask, finetune=False):
+    def imputation(self, x: torch.Tensor, mask: torch.Tensor, finetune=False):
         self.x_mean = x[mask == 0].mean(dim=-1, keepdims=True)
         self.x_std = (x[mask == 0].var(dim=-1, keepdims=True) + 1e-5).sqrt()
         x_embed = self.encoder.patch_and_embed((x - self.x_mean)/self.x_std)
@@ -373,24 +387,22 @@ class VQShape(nn.Module):
             output_dict = self._forward(x, x_embed, mask, compute_loss=False)
             return output_dict['x_pred'], output_dict
         
-    def tokenize(self, x):
+    def tokenize(self, x: torch.Tensor):
         self.x_mean = x.mean(dim=-1, keepdims=True)
         self.x_std = (x.var(dim=-1, keepdims=True) + 1e-5).sqrt()
         # Patch and embed the ts data
         x_embed = self.encoder((x - self.x_mean)/self.x_std)
-        # memory_attn_mask = torch.zeros(self.num_token, x_embed.shape[1])
         output_dict = self._forward(x, x_embed, None, compute_loss=False)
         return output_dict
     
-    def evaluate(self, x):
+    def evaluate(self, x: torch.Tensor):
         self.x_mean = x.mean(dim=-1, keepdims=True)
         self.x_std = (x.var(dim=-1, keepdims=True) + 1e-5).sqrt()
         # Patch and embed the ts data
         x_embed = self.encoder((x - self.x_mean)/self.x_std)
-        # memory_attn_mask = torch.zeros(x_embed.shape[0], x_embed.shape[1], device=x.device).bool()
         return self._forward(x, x_embed, None, compute_loss=True)
 
-    def pretrain(self, x):
+    def pretrain(self, x: torch.Tensor):
         self.x_mean = x.mean(dim=-1, keepdims=True)
         self.x_std = (x.var(dim=-1, keepdims=True) + 1e-5).sqrt()
         # Patch and embed the ts data
@@ -408,7 +420,20 @@ class VQShape(nn.Module):
 
         return self._forward(x, x_unmasked, None, compute_loss=True)
 
-    def _forward(self, x, x_embed, tokenizer_attn_mask, compute_loss=False):
+    def _forward(
+            self, 
+            x: torch.Tensor, 
+            x_embed: torch.Tensor, 
+            tokenizer_attn_mask: torch.Tensor, 
+            compute_loss: bool = False
+        ):
+        '''
+        x: shape (batch_size, time_steps), time series data
+        x_embed: shape (batch_size, num_patch, dim_embedding), embedded patches of the input time series
+        tokenizer_attn_mask: shape (batch_size, num_token), mask that indicates the missing values in the input patches
+        compute_loss: whether to compute loss
+        '''
+
         # Tokenize
         h_shape = self.tokenizer(x_embed, tokenizer_attn_mask)
 
@@ -419,7 +444,7 @@ class VQShape(nn.Module):
         t_hat = t_hat * (1 - self.min_shape_len)
         l_hat = l_hat * (1 - t_hat) + self.min_shape_len
         if self.codebook_type == 'standard':
-            z_q, z_idx, z_loss = self.codebook(z_e, do_sample=False)
+            z_q, z_idx, z_loss = self.codebook(z_e)
         else:
             z_q, vq_dict = self.codebook(z_e)
             z_loss = vq_dict['loss']
@@ -450,11 +475,13 @@ class VQShape(nn.Module):
 
         # Compute loss
         if compute_loss:
+            # Reconstruction loss
             x_loss = nn.functional.mse_loss(x_hat, x)
             s = extract_subsequence(x, t_hat, l_hat, self.len_s, smooth=self.s_smooth_factor)
             s_loss = nn.functional.mse_loss(s_hat, s.detach())
             output_dict['s_true'] = s
 
+            # Disentanglement loss
             log_l = l_hat.log() / (torch.ones_like(l_hat) * self.min_shape_len).log()
             dist_loss = eucl_sim_loss(torch.cat([torch.cos(torch.pi * t_hat) * log_l, torch.sin(torch.pi * t_hat) * log_l], dim=-1), 0.2)
 
