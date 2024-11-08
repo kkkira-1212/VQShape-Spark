@@ -21,12 +21,12 @@ Python version: Python 3.11.
 We use [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) to manage training, checkpointing, and potential future distributed training.
 
 Install the dependencies with conda:
-```
+```bash
 conda env create -f environment.yml
 ```
 
 Install the dependencies with pip:
-```
+```bash
 conda create -n vqshape python=3.11
 conda activate vqshape
 pip install -r requirements.txt
