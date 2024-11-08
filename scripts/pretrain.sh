@@ -1,11 +1,16 @@
 #!/bin/bash
 
+# Usage: bash ./scripts/pretrain.sh <codebook_size> <dim_model>
+# IMPORTANT: Make sure to change the data_root to your own path.
+# For debugging, add the flag "--dev" to the end of the command.
+
 codebook_size=$1
 dim_model=$2
+data_root=~/data/VQShape
 
 
 python ./vqshape/pretrain.py \
-    --data_root ~/Desktop/data/VQShape \
+    --data_root $data_root \
     --dim_embedding $dim_model \
     --normalize_length 512 \
     --patch_size 8 \
@@ -44,6 +49,5 @@ python ./vqshape/pretrain.py \
     --strategy "auto" \
     --precision "bf16-mixed" \
     --num_workers 8 \
-    --balance_datasets \
-    --dev
+    --balance_datasets
     
