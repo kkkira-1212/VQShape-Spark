@@ -19,6 +19,18 @@ Python version: Python 3.11.
 
 We use [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) to manage training, checkpointing, and potential future distributed training.
 
+Install the dependencies with conda:
+```
+conda env create -f environment.yml
+```
+
+Install the dependencies with pip:
+```
+conda create -n vqshape python=3.11
+conda activate vqshape
+pip install -r requirements.txt
+```
+
 ### Data Preparation
 Because of the memory configuration/limitation of our computation resources, we currently implement a lazy-loading mechanism for pre-training. To prepare the pre-training data, we first read the UEA multivariate time series and save each univariate time series into a csv file. Refer to [this notebook](notebooks/data_preparation.ipynb) for more details. The [dataset](data_provider/timeseries_loader.py) can be replaced to fit specific computational resources.
 
