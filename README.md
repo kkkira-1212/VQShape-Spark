@@ -9,7 +9,7 @@ For more details, please refer to our paper: \
 
 
 > [!NOTE]
-> This repository is still under construction since we are still working on cleaning up the source code. We aim to update this repository every one or two weeks. The pre-trained checkpoints will be released soon. Future updates will include benchmarking scripts for classification, forecasting, and imputation.
+> This repository is still under construction since we are still working on cleaning up the source code. We aim to update this repository every one or two weeks. Future updates will include benchmarking scripts for forecasting, and imputation.
 
 
 ## Usage
@@ -72,11 +72,17 @@ x = torch.randn(16, 5, 1000)  # 16 multivariate time-series, each with 5 channel
 x = F.interpolate(x, 512, mode='linear')  # first interpolate to 512 timesteps
 x = rearrange(x, 'b c t -> (b c) t')  # transform to univariate time-series
 
-output_dict = model(x, mode='tokenize')
+representations, output_dict = model(x, mode='tokenize') # tokenize with VQShape
+
+token_representations = representations['token']
+histogram_representations = representations['histogram']
 ```
 
 #### 2. Classification
-(Coming soon.)
+Specify the codebook size and the embedding dimension. For benchmarking of the UEA datasets, run:
+```
+bash ./scripts/mtsc.sh 64 512
+```
 
 #### 3. Forecasting
 (Coming soon.)
@@ -86,8 +92,23 @@ output_dict = model(x, mode='tokenize')
 
 
 ## Pre-trained Checkpoints
-(Coming soon.)
+We provide the pre-trained checkpoints on the UEA time-series classification datasets, which produce the results in the [paper](https://openreview.net/forum?id=pwKkNSuuEs).
 
+The checkpoints are available at the [release page](https://github.com/YunshiWen/VQShape/releases/tag/v0.1.0-cls). To use the checkpoints:
+1. Download the `.zip` file.
+2. Unzip the file into `./checkpoints`.
+
+Information of the pre-trained checkpoints:
+| Embedding Dimension | Codebook Size | Num. Parameters | Checkpoint | Mean Accuracy (Token) | Mean Accuracy (Hist.) |
+|:------------------:|:--------------:|:----------------:|:------------:|:---------------:|:----------------:|
+| 256 | 512 | 9.5M | [download](https://github.com/YunshiWen/VQShape/releases/download/v0.1.0-cls/uea_dim256_codebook512.zip) | 0.731 | 0.711 |
+| 512 | 512 | 37.1M | [download](https://github.com/YunshiWen/VQShape/releases/download/v0.1.0-cls/uea_dim512_codebook512.zip) | 0.723 | 0.709 |
+| 512 | 128 | 37.1M | [download](https://github.com/YunshiWen/VQShape/releases/download/v0.1.0-cls/uea_dim512_codebook128.zip) | 0.720 | 0.711 |
+| 512 | 64 | 37.1M | [download](https://github.com/YunshiWen/VQShape/releases/download/v0.1.0-cls/uea_dim512_codebook64.zip) | 0.719 | 0.712 |
+| 512 | 32 | 37.1M | [download](https://github.com/YunshiWen/VQShape/releases/download/v0.1.0-cls/uea_dim512_codebook32.zip) | 0.706 | 0.696 |
+
+> [!NOTE]
+> The checkpoint with embedding dimension 256 and codebook size 512 is **not** included in the paper, but produces the best performance. However, the checkpoint with embedding dimension 256 and codebook size 64 results in worse performance. We believe the scaling between embedding dimension and codebook size need further investigation.
 
 ## Citation
 ```

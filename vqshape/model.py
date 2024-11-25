@@ -393,7 +393,18 @@ class VQShape(nn.Module):
         # Patch and embed the ts data
         x_embed = self.encoder((x - self.x_mean)/self.x_std)
         output_dict = self._forward(x, x_embed, None, compute_loss=False)
-        return output_dict
+
+        # Token embedding
+        tokens = torch.cat([output_dict['code'], output_dict['t_pred'], output_dict['l_pred'], output_dict['mu_pred'], output_dict['sigma_pred']], dim=-1)
+        # Histogram embedding
+        histogram = torch.zeros(output_dict['code'].shape[0], self.num_code, device=x.device, dtype=output_dict['code_idx'].dtype).scatter_add_(1, output_dict['code_idx'], torch.ones_like(output_dict['code_idx']))
+
+        representations = {
+            'token': tokens,
+            'histogram': histogram
+        }
+
+        return representations, output_dict
     
     def evaluate(self, x: torch.Tensor):
         self.x_mean = x.mean(dim=-1, keepdims=True)
