@@ -1,3 +1,5 @@
+# mtsc.py is the original author's experimental script for multivariate time series classification of the UEA dataset. 
+# It is not used in this project and is for reference only.
 import torch
 import torch.nn as nn
 import os, random

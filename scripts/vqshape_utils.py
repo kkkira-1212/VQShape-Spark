@@ -1,3 +1,4 @@
+# visualization helpers (heatmap, shape visualizer).
 import torch
 import torch.nn as nn
 import time

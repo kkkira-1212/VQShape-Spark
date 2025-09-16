@@ -1,1 +1,17 @@
-*.pyc
+__pycache__/
+*.py[cod]
+*.$py.class
+.ipynb_checkpoints/
+.DS_Store
+# data & outputs
+outputs/
+analysis_out/
+data/raw/
+runs/
+logs/
+wandb/
+tensorboard/
+# checkpoints / large
+checkpoints/
+*.ckpt
+*.pt

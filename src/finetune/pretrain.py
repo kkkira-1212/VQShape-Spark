@@ -10,9 +10,9 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import LearningRateMonitor
 import wandb
 
-from data_provider.timeseries_loader import TimeSeriesDatasetLazy
-from vqshape.vqshape_utils import visualize_shapes, plot_code_heatmap
-from vqshape.model import VQShape
+from data.data_provider.timeseries_loader import TimeSeriesDatasetLazy
+from scripts.vqshape_utils import visualize_shapes, plot_code_heatmap
+from models.vqshape.model import VQShape
 
 import warnings
 warnings.filterwarnings('ignore')

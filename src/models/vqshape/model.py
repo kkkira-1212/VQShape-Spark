@@ -110,10 +110,22 @@ class PatchEncoder(nn.Module):
             num_layers=num_layer
         )
 
+    # def patch_and_embed(self, x):
+    #     x = x.unfold(-1, self.patch_size, int(x.shape[-1]/self.num_patch))
+    #     x = self.pos_embed(self.input_project(x))
+    #     return x
     def patch_and_embed(self, x):
-        x = x.unfold(-1, self.patch_size, int(x.shape[-1]/self.num_patch))
+        time_len = x.shape[-1]
+        step = max(1, int(time_len / self.num_patch)) 
+        if step <= 0 or time_len < self.patch_size:
+            raise ValueError(f"The length of input is too short! time_len={time_len}, patch_size={self.patch_size}, step={step}")
+
+        x = x.unfold(-1, self.patch_size, step)
+        B, C, N, P = x.shape
+        x = x.permute(0, 2, 1, 3).contiguous().reshape(B, N, C * P)
         x = self.pos_embed(self.input_project(x))
         return x
+
 
     def forward(self, x):
         return self.transformer(self.patch_and_embed(x))
