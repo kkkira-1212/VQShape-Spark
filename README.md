@@ -4,7 +4,7 @@ A streamlined pipeline for detecting “spark” anomalies in GEM1h current time
 
 ## Acknowledgments
 
-Senior’s contribution: This repo is developed based on the vqshpe model from Yunshi Wen. Many thanks for the guidance and sharing.
+Senior’s contribution: This repo is developed based on the vqshape model from Yunshi Wen. Many thanks for the guidance and sharing.
 
 Upstream project: Built on VQShape (see archive/VQSHAPE_README.md).Upstream license:/VQShape/LICENSE
 More info, please refer to https://github.com/YunshiWen/VQShape
